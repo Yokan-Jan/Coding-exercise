@@ -48,15 +48,19 @@ private:
     QAction *sketch;
     QAction *colors;
     QAction *equalize;
+    QAction *edge;
+    QAction *scharr;
     cv::Mat src,dst;
 
 
 private slots:
     void openActionSlot();
     void remapSlot();
-    void sketchSlot();
+    void scarrSlot();
     void colorsSlot();
     void equalizeHistSlot();
+    void edgeSlot();
+    void sketchSlot();
 //void openActionSlot2();
 //    void keyPointsSlot();
     void blurActionSlot();

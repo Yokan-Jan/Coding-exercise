@@ -24,10 +24,11 @@ MainWindow::MainWindow(QWidget *parent) :
     blurAction = new QAction(tr("Blur"),this);
     detectAction = new QAction(tr("Detect"),this);
     reMap = new QAction(tr("Remap"),this);
-    sketch = new QAction(tr("Scharr"),this);
+    scharr = new QAction(tr("Scharr"),this);
     colors = new QAction(tr("Colors"),this);
     equalize = new QAction(tr("Equalize"),this);
-
+    edge = new QAction(tr("Edge"),this);
+    sketch = new QAction(tr("Sketch"),this);
 
     openAction->setStatusTip(tr("一定要记得先点这个图标打开图片，不然会出bug！"));
 
@@ -35,9 +36,11 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(openAction2,&QAction::triggered,this,&MainWindow::openActionSlot);
     connect(blurAction,&QAction::triggered,this,&MainWindow::blurActionSlot);
     connect(reMap,&QAction::triggered,this,&MainWindow::remapSlot);
-    connect(sketch,&QAction::triggered,this,&MainWindow::sketchSlot);
+    connect(scharr,&QAction::triggered,this,&MainWindow::scarrSlot);
     connect(colors,&QAction::triggered,this,&MainWindow::colorsSlot);
     connect(equalize,&QAction::triggered,this,&MainWindow::equalizeHistSlot);
+    connect(edge,&QAction::triggered,this,&MainWindow::edgeSlot);
+    connect(sketch,&QAction::triggered,this,&MainWindow::sketchSlot);
     //connect(detectAction,&QAction::triggered,this,&MainWindow::keyPointsSlot);
 
     //QMenu *file = menuBar()->addMenu(tr("&File"));
@@ -48,6 +51,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->mainToolBar->addAction(reMap);
     ui->mainToolBar->addAction(sketch);
     ui->mainToolBar->addAction(colors);
+    ui->mainToolBar->addAction(edge);
     ui->mainToolBar->addAction(equalize);
 
     statusBar();
@@ -93,16 +97,22 @@ void MainWindow::display(QImage Image)
 QImage MainWindow::Mat2QImage(const cv::Mat &mat)
 {
 
-    QImage img;
-    if(mat.channels()==3)
-    {
+    QImage img; Mat gray;
+   if(mat.channels()==3)
+   {
         cvtColor(mat,rgb,CV_BGR2RGB);
         img = QImage((const unsigned char*)(rgb.data),rgb.cols,rgb.rows,rgb.cols*rgb.channels(),QImage::Format_RGB888);
     }
-    else if(mat.channels()==1)
+   else if(mat.channels()==1)
     {
-        img = QImage((const unsigned char*)(mat.data),mat.cols,mat.rows,mat.cols*mat.channels(),QImage::Format_RGB888);
+         img = QImage((const unsigned char*)(mat.data),mat.cols,mat.rows,mat.step,QImage::Format_Indexed8);
     }
+   else
+   {
+       cvtColor(image,gray,CV_BGR2GRAY);
+       img = QImage((const unsigned char*)(gray.data),gray.cols,gray.rows,gray.step,QImage::Format_Indexed8);
+   }
+
     return img;
 }
 
@@ -148,7 +158,7 @@ void MainWindow::remapSlot()
     display(Image);
 }
 
-void MainWindow::sketchSlot()
+void MainWindow::scarrSlot()
 {
     QImage image;
     Mat grad_x,grad_y;
@@ -232,6 +242,49 @@ void MainWindow::colorsSlot()
     dialog.exec();
 }
 
+void MainWindow::edgeSlot()
+{
+    Mat edge,grayImage;
+    cvtColor(src,grayImage,CV_BGR2GRAY);
+    blur(grayImage,edge,Size(3,3));
+    Canny(edge,edge,3,9,3);
+    QImage img = Mat2QImage(edge);
+    display(img);
+}
+
+void MainWindow::sketchSlot()
+{
+        Mat gray0,gray1;
+        int width=src.cols;
+        int heigh=src.rows;
+
+        //去色
+        cvtColor(src,gray0,CV_BGR2GRAY);
+
+        //反色
+        addWeighted(gray0,-1,NULL,0,255,gray1);
+
+        //高斯模糊,高斯核的Size与最后的效果有关
+        GaussianBlur(gray1,gray1,Size(11,11),0);
+
+        //融合：颜色减淡
+        Mat img(gray1.size(),CV_8UC1);
+        for (int y=0; y<heigh; y++)
+        {
+
+            uchar* P0  = gray0.ptr<uchar>(y);
+            uchar* P1  = gray1.ptr<uchar>(y);
+            uchar* P  = img.ptr<uchar>(y);
+            for (int x=0; x<width; x++)
+            {
+                int tmp0=P0[x];
+                int tmp1=P1[x];
+                P[x] =(uchar) min((tmp0+(tmp0*tmp1)/(256-tmp1)),255);
+            }
+        }
+        QImage image=Mat2QImage(img);
+        display(image);
+}
 
 /*Mat MainWindow::keyPoints(Mat& image)
 {
